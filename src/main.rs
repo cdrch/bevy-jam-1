@@ -34,6 +34,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         ArmorPoints(0),
         WeaponStats::default(),
         WeaponStats::default(),
+        WeaponStats::default(),
         Energy(128),
         Energy(4),
         MovementRange(1),
@@ -56,8 +57,9 @@ fn spawn_unit(
     grid_position: GridPosition,
     unit_hit_points: HitPoints,
     unit_armor_points: ArmorPoints,
-    weapon_a: WeaponStats,
-    weapon_b: WeaponStats,
+    primary_weapon: WeaponStats,
+    secondary_weapon: WeaponStats,
+    tertiary_weapon: WeaponStats,
     unit_energy: Energy,
     energy_regeneration: Energy,
     movement_range: MovementRange,
@@ -81,8 +83,9 @@ fn spawn_unit(
         .insert(BelongsToFaction::new(&faction))
         .insert(UnitHitPoints::new(unit_hit_points))
         .insert(UnitArmorPoints::new(unit_armor_points))
-        .insert(Weapon::new(weapon_a))
-        .insert(Weapon::new(weapon_b))
+        .insert(Weapon::new(primary_weapon))
+        .insert(Weapon::new(secondary_weapon))
+        .insert(Weapon::new(tertiary_weapon))
         .insert(UnitEnergy::new(unit_energy))
         .insert(EnergyRegeneration::new(energy_regeneration))
         .insert(UnitMove::new(movement_cost, movement_range))
@@ -95,7 +98,13 @@ fn spawn_unit(
 #[derive(Component)]
 struct Unit;
 
-#[derive(Component, Clone, Copy)]
+impl Unit {
+    fn move_unit(new_pos: GridPosition) -> GridPosition {
+        println!("Moving unit to {:?}", new_pos);
+        new_pos
+    }
+}
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
 struct GridPosition {
     x: i32,
     y: i32,
@@ -108,6 +117,27 @@ impl GridPosition {
 
     fn to_vec3(&self) -> Vec3 {
         Vec3::new(self.x as f32, self.y as f32, 0.0)
+    }
+
+    fn move_dir(&self, direction: Direction) -> GridPosition {
+        match direction {
+            Direction::Up => GridPosition {
+                x: self.x,
+                y: self.y + 1,
+            },
+            Direction::Down => GridPosition {
+                x: self.x,
+                y: self.y - 1,
+            },
+            Direction::Left => GridPosition {
+                x: self.x - 1,
+                y: self.y,
+            },
+            Direction::Right => GridPosition {
+                x: self.x + 1,
+                y: self.y,
+            },
+        }
     }
 }
 
@@ -368,6 +398,55 @@ impl UnitController {
         }
     }
 }
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Direction {
+    Left,
+    Right,
+    Up,
+    Down,
+}
+
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+struct MoveRequest {
+    direction: Direction,
+}
+
+impl MoveRequest {
+    fn new(direction: Direction) -> Self {
+        MoveRequest { direction }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum WeaponChoice {
+    None,
+    Primary,
+    Secondary,
+    Tertiary,
+}
+
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+struct AttackRequest {
+    direction: Direction,
+    weapon_choice: WeaponChoice,
+}
+
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+struct DodgeRequest;
+
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+struct HealRequest {
+    direction: Direction,
+}
+
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+struct RepairRequest {
+    direction: Direction,
+}
+
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+struct WaitRequest;
 
 #[derive(Component)]
 struct Tile;

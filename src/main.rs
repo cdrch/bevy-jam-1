@@ -139,7 +139,7 @@ impl BelongsToFaction {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct HitPoints(u8);
 
 #[derive(Component)]
@@ -157,7 +157,7 @@ impl UnitHitPoints {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct ArmorPoints(u8);
 
 #[derive(Component)]
@@ -175,10 +175,10 @@ impl UnitArmorPoints {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct Ammo(u8);
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct Move(u8);
 
 #[derive(Component)]
@@ -196,7 +196,7 @@ impl Weapon {
     }
 }
 
-#[derive(Component, Clone, Copy)]
+#[derive(Component, Clone, Copy, Debug)]
 struct WeaponStats {
     armor_piercing: u8,
     accuracy: u8,
@@ -243,7 +243,7 @@ impl WeaponStats {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct Energy(i32);
 
 #[derive(Component)]
@@ -274,7 +274,7 @@ impl EnergyRegeneration {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct MovementRange(u8);
 
 #[derive(Component)]
@@ -292,7 +292,7 @@ impl UnitMove {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct VisionRange(u8);
 
 #[derive(Component)]

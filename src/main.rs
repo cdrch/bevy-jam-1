@@ -8,12 +8,16 @@ fn main() {
         })
         .insert_resource(ClearColor(Color::rgb(0.1, 0.1, 0.1)))
         .add_plugins(DefaultPlugins)
+        .add_startup_system(setup_cameras)
         .add_startup_system(setup)
         .run();
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn setup_cameras(mut commands: Commands) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+    commands.spawn_bundle(UiCameraBundle::default());
+}
     commands.spawn_bundle(SpriteBundle {
         texture: asset_server.load("Kenney Blue Letter Tiles/letter_A.png"),
         ..Default::default()

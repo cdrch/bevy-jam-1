@@ -50,6 +50,11 @@ fn main() {
                 .with_system(order_random_movement),
         )
         .add_system(move_units)
+        .add_system_set(
+            SystemSet::new()
+                .with_run_criteria(FixedTimestep::step(2.5))
+                .with_system(energy_regeneration),
+        )
         .add_system(debug_energy)
         .run();
 }
@@ -204,6 +209,22 @@ fn move_units(
             // If the unit moved, remove the move order.
             // commands.remove_component::<MoveRequest>(move_request.entity);
             commands.entity(entity).remove::<MoveRequest>();
+        }
+    }
+}
+
+fn energy_regeneration(
+    mut commands: Commands,
+    mut query: Query<(&mut UnitEnergy, &mut EnergyRegeneration)>,
+) {
+    // For each unit in the query, regenerate energy.
+    for ((mut unit_energy, energy_regeneration)) in query.iter_mut() {
+        // Set the unit's UnitEnergy component to the new energy
+        unit_energy.current_energy.0 += energy_regeneration.energy_regeneration.0;
+        if unit_energy.current_energy.0 > unit_energy.max_energy.0 {
+            unit_energy.current_energy.0 = unit_energy.max_energy.0;
+        } else if unit_energy.current_energy.0 < 0 {
+            unit_energy.current_energy.0 = 0;
         }
     }
 }

@@ -43,7 +43,7 @@ fn main() {
                 .with_run_criteria(FixedTimestep::step(REGEN_TICK_FREQUENCY))
                 .with_system(energy_regeneration),
         )
-        .add_system(debug_energy)
+        // .add_system(debug_energy)
         .run();
 }
 

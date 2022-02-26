@@ -119,10 +119,40 @@ fn try_move_unit(
     // If the unit has enough energy to move, move the unit and
     // subtract the movement cost from the unit's energy.
     if unit_energy.current_energy.0 >= unit_move.energy_cost.0 {
+        let old_pos = unit_position.clone();
         // Set the unit's GridPosition component to the new position
         *unit_position += direction.as_grid_position();
-        // Set the unit's UnitEnergy component to the new energy
-        unit_energy.current_energy.0 -= unit_move.energy_cost.0;
+        if unit_position.x < 0 || unit_position.x >= MAP_WIDTH as i32 {
+            *unit_position = old_pos;
+        } else if unit_position.y < 0 || unit_position.y >= MAP_HEIGHT as i32 {
+            *unit_position = old_pos;
+        }
+        // If a movement occurred, subtract the movement cost from the unit's energy
+        if old_pos != *unit_position {
+            // Set the unit's UnitEnergy component to the new energy
+            unit_energy.current_energy.0 -= unit_move.energy_cost.0;
+        }
+    }
+}
+
+fn move_units(
+    mut commands: Commands,
+    mut query: Query<(
+        (&mut GridPosition, &mut UnitMove),
+        (&mut UnitEnergy, &mut MoveRequest),
+    )>,
+) {
+    // For each unit in the query, try to move it.
+    for ((mut unit_position, mut unit_move), (mut unit_energy, move_request)) in query.iter_mut() {
+        // Get the unit's current direction.
+        let direction = move_request.direction;
+        // Try to move the unit.
+        try_move_unit(
+            &mut unit_position,
+            &mut unit_move,
+            &mut unit_energy,
+            direction,
+        );
     }
 }
 
@@ -142,8 +172,8 @@ fn size_scaling(windows: Res<Windows>, mut q: Query<(&Size, &mut Transform)>) {
     let window = windows.get_primary().unwrap();
     let aspect_ratio = window.width() as f32 / window.height() as f32;
     for (sprite_size, mut transform) in q.iter_mut() {
-        println!("{:?}", sprite_size.width * aspect_ratio as f32);
-        println!("{:?}", sprite_size.height * aspect_ratio as f32);
+        // println!("{:?}", sprite_size.width * aspect_ratio as f32);
+        // println!("{:?}", sprite_size.height * aspect_ratio as f32);
         transform.scale = Vec3::new(
             sprite_size.width /*/ GAME_WIDTH as f32*/ * aspect_ratio as f32,
             sprite_size.height /*/ GAME_HEIGHT as f32*/ * aspect_ratio as f32,

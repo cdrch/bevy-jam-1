@@ -98,12 +98,6 @@ fn spawn_unit(
 #[derive(Component)]
 struct Unit;
 
-impl Unit {
-    fn move_unit(new_pos: GridPosition) -> GridPosition {
-        println!("Moving unit to {:?}", new_pos);
-        new_pos
-    }
-}
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
 struct GridPosition {
     x: i32,

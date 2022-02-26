@@ -703,6 +703,71 @@ struct WaitRequest;
 
 #[derive(Component)]
 struct Tile;
+
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+enum Cover {
+    None,
+    Light,
+    Heavy,
+}
+
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+enum Terrain {
+    None,
+    Flat,
+    Hill,
+    Mountain,
+    Water,
+    Forest,
+    Urban,
+}
+
+impl Default for Terrain {
+    fn default() -> Self {
+        Terrain::None
+    }
+}
+
+impl Terrain {
+    fn is_water(&self) -> bool {
+        match self {
+            Terrain::Water => true,
+            _ => false,
+        }
+    }
+    // TODO: make constants or configurable
+    fn traversal_cost_multiplier(&self) -> f32 {
+        match self {
+            Terrain::None => 0.0,
+            Terrain::Flat => 1.0,
+            Terrain::Hill => 2.0,
+            Terrain::Mountain => 3.0,
+            Terrain::Water => 2.5,
+            Terrain::Forest => 1.5,
+            Terrain::Urban => 1.25,
+        }
+    }
+
+    fn is_traversable(&self) -> bool {
+        self.traversal_cost_multiplier() > 0.0
+    }
+
+    fn is_impassable(&self) -> bool {
+        self.traversal_cost_multiplier() <= 0.0
+    }
+
+    fn cover_level(&self) -> Cover {
+        match self {
+            Terrain::None => Cover::None,
+            Terrain::Flat => Cover::None,
+            Terrain::Hill => Cover::Light,
+            Terrain::Mountain => Cover::Heavy,
+            Terrain::Water => Cover::None,
+            Terrain::Forest => Cover::Light,
+            Terrain::Urban => Cover::Heavy,
+        }
+    }
+}
 fn spawn_tile(
     commands: &mut Commands,
     asset_server: &AssetServer,

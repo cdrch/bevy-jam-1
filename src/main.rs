@@ -27,6 +27,7 @@ fn main() {
         })
         .insert_resource(ClearColor(Color::rgb(0.1, 0.1, 0.1)))
         .add_plugins(DefaultPlugins)
+        .add_startup_system(spawn_tile_grid)
         .add_startup_system(setup_cameras)
         .add_startup_system(setup)
         .add_system(position_translation)
@@ -108,7 +109,8 @@ fn spawn_unit(
             transform: Transform::from_translation(grid_position.to_vec3()),
             ..Default::default()
         })
-        .insert(Size::new(1.0, 1.0))
+        .insert(DrawLayer::Collision)
+        .insert(Size::new(0.75, 0.75))
         .insert(Unit)
         .insert(unit_controller)
         .insert(grid_position)
@@ -249,22 +251,38 @@ fn size_scaling(windows: Res<Windows>, mut q: Query<(&Size, &mut Transform)>) {
     }
 }
 
-fn position_translation(windows: Res<Windows>, mut q: Query<(&GridPosition, &mut Transform)>) {
+fn position_translation(
+    windows: Res<Windows>,
+    mut q: Query<((&GridPosition, &mut Transform), &DrawLayer)>,
+) {
     fn convert(pos: f32, window_bound: f32, game_bound: f32) -> f32 {
         let tile_size = TILE_WIDTH; //window_bound / game_bound;
                                     // pos * game_bound * window_bound - (window_bound / 2.) + (window_bound / game_bound / 2.)
         pos * tile_size
     }
     let window = windows.get_primary().unwrap();
-    for (pos, mut transform) in q.iter_mut() {
+    for ((pos, mut transform), draw_layer) in q.iter_mut() {
         transform.translation = Vec3::new(
             convert(pos.x as f32, window.width() as f32, GAME_WIDTH as f32) * window.height()
                 / REFERENCE_HEIGHT,
             convert(pos.y as f32, window.height() as f32, GAME_HEIGHT as f32) * window.height()
                 / REFERENCE_HEIGHT,
-            0.0,
+            draw_layer.as_f32(),
         );
         // info!("{:?}", transform.translation);
+    }
+}
+
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+enum DrawLayer {
+    Background = 10,
+    Collision = 20,
+    Foreground = 30,
+}
+
+impl DrawLayer {
+    fn as_f32(&self) -> f32 {
+        *self as i32 as f32
     }
 }
 
@@ -685,3 +703,72 @@ struct WaitRequest;
 
 #[derive(Component)]
 struct Tile;
+fn spawn_tile(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    sprite_path: &String,
+    grid_position: GridPosition,
+    terrain: Terrain,
+) {
+    commands
+        .spawn_bundle(SpriteBundle {
+            texture: asset_server.load(sprite_path),
+            transform: Transform::from_translation(grid_position.to_vec3()),
+            ..Default::default()
+        })
+        .insert(DrawLayer::Background)
+        .insert(Size::new(1.0, 1.0))
+        .insert(Tile)
+        .insert(grid_position)
+        .insert(terrain);
+}
+
+fn spawn_tile_grid(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let mut grid_position = GridPosition::new(0, 0);
+    let mut terrain = Terrain::None;
+    for _ in 0..10 {
+        for _ in 0..10 {
+            info!("Spawning tile at {:?}", grid_position);
+            spawn_tile(
+                &mut commands,
+                &asset_server,
+                &"Kenney Blue Letter Tiles/letter.png".to_string(),
+                grid_position,
+                terrain,
+            );
+            grid_position.x += 1;
+
+            if grid_position.x == 10 {
+                grid_position.x = 0;
+                grid_position.y += 1;
+
+                if grid_position.y == 10 {
+                    grid_position.y = 0;
+                    terrain = Terrain::None;
+                } else {
+                    terrain = Terrain::Flat;
+
+                    if grid_position.y == 5 {
+                        terrain = Terrain::Hill;
+                    }
+
+                    if grid_position.y == 7 {
+                        terrain = Terrain::Mountain;
+                    }
+
+                    if grid_position.y == 8 {
+                        terrain = Terrain::Water;
+                    }
+
+                    if grid_position.y == 9 {
+                        terrain = Terrain::Forest;
+                    }
+
+                    if grid_position.y == 10 {
+                        terrain = Terrain::Urban;
+                    }
+                }
+            }
+        }
+    }
+}

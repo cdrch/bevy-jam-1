@@ -1,14 +1,32 @@
-use bevy::{log::LogSettings, prelude::*};
+use bevy::{core::FixedTimestep, log::LogSettings, prelude::*};
 use rand::Rng;
 use std::ops::{Add, AddAssign};
 
 const MAP_WIDTH: u32 = 20;
 const MAP_HEIGHT: u32 = 20;
 const MAP_SIZE: u32 = MAP_WIDTH * MAP_HEIGHT;
-const TILE_WIDTH: f32 = 1.0;
-const TILE_HEIGHT: f32 = 1.0;
+const TILE_WIDTH: f32 = 2.0;
+const TILE_HEIGHT: f32 = 2.0;
 const GAME_WIDTH: f32 = TILE_WIDTH * MAP_WIDTH as f32;
 const GAME_HEIGHT: f32 = TILE_HEIGHT * MAP_HEIGHT as f32;
+const REFERENCE_WIDTH: f32 = 1920.0;
+const REFERENCE_HEIGHT: f32 = 1080.0;
+const REFERENCE_ASPECT: f32 = REFERENCE_WIDTH / REFERENCE_HEIGHT;
+
+struct ScreenSize {
+    width: f32,
+    height: f32,
+}
+
+impl ScreenSize {
+    fn new(width: f32, height: f32) -> Self {
+        Self { width, height }
+    }
+
+    fn aspect(&self) -> f32 {
+        self.width / self.height
+    }
+}
 
 fn main() {
     App::new()
@@ -26,6 +44,12 @@ fn main() {
         .add_startup_system(setup)
         .add_system(position_translation)
         .add_system(size_scaling)
+        .add_system_set(
+            SystemSet::new()
+                .with_run_criteria(FixedTimestep::step(1.0))
+                .with_system(order_random_movement),
+        )
+        .add_system(move_units)
         .run();
 }
 
@@ -110,49 +134,76 @@ fn spawn_unit(
         .insert(CanRepair::new(repair_cost, can_repair_amount));
 }
 
+fn order_random_movement(
+    mut commands: Commands,
+    mut query: Query<(
+        (&mut GridPosition, &mut UnitMove),
+        (Without<MoveRequest>, Entity),
+    )>,
+) {
+    let dir = random_direction();
+    for ((grid_position, unit_move), (move_request, entity)) in &mut query.iter_mut() {
+        commands
+            .entity(entity)
+            .insert(MoveRequest::with_direction(dir));
+    }
+}
+
 fn try_move_unit(
     unit_position: &mut GridPosition,
     unit_move: &mut UnitMove,
     unit_energy: &mut UnitEnergy,
     direction: Direction,
-) {
+) -> bool {
     // If the unit has enough energy to move, move the unit and
     // subtract the movement cost from the unit's energy.
     if unit_energy.current_energy.0 >= unit_move.energy_cost.0 {
         let old_pos = unit_position.clone();
         // Set the unit's GridPosition component to the new position
         *unit_position += direction.as_grid_position();
-        if unit_position.x < 0 || unit_position.x >= MAP_WIDTH as i32 {
+        if unit_position.x < 0
+            || unit_position.x >= MAP_WIDTH as i32
+            || unit_position.y < 0
+            || unit_position.y >= MAP_HEIGHT as i32
+        {
             *unit_position = old_pos;
-        } else if unit_position.y < 0 || unit_position.y >= MAP_HEIGHT as i32 {
-            *unit_position = old_pos;
+            return true;
         }
         // If a movement occurred, subtract the movement cost from the unit's energy
         if old_pos != *unit_position {
             // Set the unit's UnitEnergy component to the new energy
             unit_energy.current_energy.0 -= unit_move.energy_cost.0;
+            return true;
         }
     }
+    false
 }
 
 fn move_units(
     mut commands: Commands,
     mut query: Query<(
         (&mut GridPosition, &mut UnitMove),
-        (&mut UnitEnergy, &mut MoveRequest),
+        (&mut UnitEnergy, (&mut MoveRequest, Entity)),
     )>,
 ) {
     // For each unit in the query, try to move it.
-    for ((mut unit_position, mut unit_move), (mut unit_energy, move_request)) in query.iter_mut() {
+    for ((mut unit_position, mut unit_move), (mut unit_energy, (move_request, entity))) in
+        query.iter_mut()
+    {
         // Get the unit's current direction.
         let direction = move_request.direction;
         // Try to move the unit.
-        try_move_unit(
+        let should_remove_order = try_move_unit(
             &mut unit_position,
             &mut unit_move,
             &mut unit_energy,
             direction,
         );
+        if should_remove_order {
+            // If the unit moved, remove the move order.
+            // commands.remove_component::<MoveRequest>(move_request.entity);
+            commands.entity(entity).remove::<MoveRequest>();
+        }
     }
 }
 
@@ -171,12 +222,13 @@ fn random_direction() -> Direction {
 fn size_scaling(windows: Res<Windows>, mut q: Query<(&Size, &mut Transform)>) {
     let window = windows.get_primary().unwrap();
     let aspect_ratio = window.width() as f32 / window.height() as f32;
+    let scale = window.height() / REFERENCE_HEIGHT;
     for (sprite_size, mut transform) in q.iter_mut() {
         // println!("{:?}", sprite_size.width * aspect_ratio as f32);
         // println!("{:?}", sprite_size.height * aspect_ratio as f32);
         transform.scale = Vec3::new(
-            sprite_size.width /*/ GAME_WIDTH as f32*/ * aspect_ratio as f32,
-            sprite_size.height /*/ GAME_HEIGHT as f32*/ * aspect_ratio as f32,
+            sprite_size.width /*/ GAME_WIDTH as f32*/ * scale as f32,
+            sprite_size.height /*/ GAME_HEIGHT as f32*/ * scale as f32,
             1.0,
         );
     }
@@ -184,8 +236,8 @@ fn size_scaling(windows: Res<Windows>, mut q: Query<(&Size, &mut Transform)>) {
 
 fn position_translation(windows: Res<Windows>, mut q: Query<(&GridPosition, &mut Transform)>) {
     fn convert(pos: f32, window_bound: f32, game_bound: f32) -> f32 {
-        let tile_size = window_bound / game_bound;
-        pos / game_bound * window_bound - (window_bound / 2.) + (tile_size / 2.)
+        let tile_size = TILE_WIDTH; //window_bound / game_bound;
+        pos // game_bound * window_bound - (window_bound / 2.) + (tile_size / 2.)
     }
     let window = windows.get_primary().unwrap();
     for (pos, mut transform) in q.iter_mut() {
@@ -577,7 +629,7 @@ struct MoveRequest {
 }
 
 impl MoveRequest {
-    fn new(direction: Direction) -> Self {
+    fn with_direction(direction: Direction) -> Self {
         MoveRequest { direction }
     }
 }

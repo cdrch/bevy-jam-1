@@ -50,6 +50,7 @@ fn main() {
                 .with_system(order_random_movement),
         )
         .add_system(move_units)
+        .add_system(debug_energy)
         .run();
 }
 
@@ -207,6 +208,12 @@ fn move_units(
     }
 }
 
+fn debug_energy(mut commands: Commands, mut query: Query<(&UnitEnergy, Entity)>) {
+    for (unit_energy, entity) in &mut query.iter_mut() {
+        info!("{:?}", unit_energy.current_energy.0.to_string());
+    }
+}
+
 fn random_direction() -> Direction {
     let mut rng = rand::thread_rng();
     let random_number = rng.gen_range(0..4);
@@ -249,7 +256,7 @@ fn position_translation(windows: Res<Windows>, mut q: Query<(&GridPosition, &mut
                 / REFERENCE_HEIGHT,
             0.0,
         );
-        info!("{:?}", transform.translation);
+        // info!("{:?}", transform.translation);
     }
 }
 

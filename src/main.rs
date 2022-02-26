@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use std::ops::{Add, AddAssign};
 
 fn main() {
     App::new()
@@ -37,7 +38,6 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         WeaponStats::default(),
         Energy(128),
         Energy(4),
-        MovementRange(1),
         Energy(8),
         VisionRange(8),
         Energy(32),
@@ -62,7 +62,6 @@ fn spawn_unit(
     tertiary_weapon: WeaponStats,
     unit_energy: Energy,
     energy_regeneration: Energy,
-    movement_range: MovementRange,
     movement_cost: Energy,
     vision_range: VisionRange,
     dodge_cost: Energy,
@@ -88,11 +87,27 @@ fn spawn_unit(
         .insert(Weapon::new(tertiary_weapon))
         .insert(UnitEnergy::new(unit_energy))
         .insert(EnergyRegeneration::new(energy_regeneration))
-        .insert(UnitMove::new(movement_cost, movement_range))
+        .insert(UnitMove::new(movement_cost))
         .insert(UnitVision::new(vision_range))
         .insert(CanDodge::new(dodge_cost))
         .insert(CanHeal::new(heal_cost, can_heal_amount))
         .insert(CanRepair::new(repair_cost, can_repair_amount));
+}
+
+fn try_move_unit(
+    unit_position: &mut GridPosition,
+    unit_move: &mut UnitMove,
+    unit_energy: &mut UnitEnergy,
+    direction: Direction,
+) {
+    // If the unit has enough energy to move, move the unit and
+    // subtract the movement cost from the unit's energy.
+    if unit_energy.current_energy.0 >= unit_move.energy_cost.0 {
+        // Set the unit's GridPosition component to the new position
+        *unit_position += direction.as_grid_position();
+        // Set the unit's UnitEnergy component to the new energy
+        unit_energy.current_energy.0 -= unit_move.energy_cost.0;
+    }
 }
 
 #[derive(Component)]
@@ -104,7 +119,29 @@ struct GridPosition {
     y: i32,
 }
 
+impl Add for GridPosition {
+    type Output = GridPosition;
+
+    fn add(self, other: GridPosition) -> GridPosition {
+        GridPosition {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
+    }
+}
+
+impl AddAssign for GridPosition {
+    fn add_assign(&mut self, other: GridPosition) {
+        self.x += other.x;
+        self.y += other.y;
+    }
+}
+
 impl GridPosition {
+    fn new(x: i32, y: i32) -> GridPosition {
+        GridPosition { x, y }
+    }
+
     fn to_position(&self) -> Vec2 {
         Vec2::new(self.x as f32, self.y as f32)
     }
@@ -113,25 +150,22 @@ impl GridPosition {
         Vec3::new(self.x as f32, self.y as f32, 0.0)
     }
 
-    fn move_dir(&self, direction: Direction) -> GridPosition {
+    fn move_dir(&self, direction: Direction) -> (i32, i32) {
         match direction {
-            Direction::Up => GridPosition {
-                x: self.x,
-                y: self.y + 1,
-            },
-            Direction::Down => GridPosition {
-                x: self.x,
-                y: self.y - 1,
-            },
-            Direction::Left => GridPosition {
-                x: self.x - 1,
-                y: self.y,
-            },
-            Direction::Right => GridPosition {
-                x: self.x + 1,
-                y: self.y,
-            },
+            Direction::Up => (self.x, self.y + 1),
+            Direction::Down => (self.x, self.y - 1),
+            Direction::Left => (self.x - 1, self.y),
+            Direction::Right => (self.x + 1, self.y),
         }
+    }
+
+    fn set(&mut self, (x, y): (i32, i32)) {
+        self.x = x;
+        self.y = y;
+    }
+
+    fn get(&self) -> (i32, i32) {
+        (self.x, self.y)
     }
 }
 
@@ -272,14 +306,14 @@ struct Energy(i32);
 
 #[derive(Component)]
 struct UnitEnergy {
-    energy: Energy,
+    current_energy: Energy,
     max_energy: Energy,
 }
 
 impl UnitEnergy {
     fn new(max_energy: Energy) -> UnitEnergy {
         UnitEnergy {
-            energy: max_energy,
+            current_energy: max_energy,
             max_energy,
         }
     }
@@ -298,20 +332,15 @@ impl EnergyRegeneration {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-struct MovementRange(u8);
-
 #[derive(Component)]
 struct UnitMove {
-    energy: Energy,
-    movement_range: MovementRange,
+    energy_cost: Energy,
 }
 
 impl UnitMove {
-    fn new(energy: Energy, movement_range: MovementRange) -> Self {
+    fn new(energy: Energy) -> Self {
         UnitMove {
-            energy,
-            movement_range,
+            energy_cost: energy,
         }
     }
 }
@@ -332,36 +361,44 @@ impl UnitVision {
 
 #[derive(Component)]
 struct CanDodge {
-    energy: Energy,
+    energy_cost: Energy,
 }
 
 impl CanDodge {
     fn new(energy: Energy) -> CanDodge {
-        CanDodge { energy }
+        CanDodge {
+            energy_cost: energy,
+        }
     }
 }
 
 #[derive(Component)]
 struct CanHeal {
-    energy: Energy,
+    energy_cost: Energy,
     amount: HitPoints,
 }
 
 impl CanHeal {
     fn new(energy: Energy, amount: HitPoints) -> Self {
-        CanHeal { energy, amount }
+        CanHeal {
+            energy_cost: energy,
+            amount,
+        }
     }
 }
 
 #[derive(Component)]
 struct CanRepair {
-    energy: Energy,
+    energy_cost: Energy,
     amount: ArmorPoints,
 }
 
 impl CanRepair {
     fn new(energy: Energy, amount: ArmorPoints) -> Self {
-        CanRepair { energy, amount }
+        CanRepair {
+            energy_cost: energy,
+            amount,
+        }
     }
 }
 
@@ -399,6 +436,35 @@ enum Direction {
     Right,
     Up,
     Down,
+}
+
+impl Direction {
+    fn opposite(&self) -> Self {
+        match self {
+            Direction::Left => Direction::Right,
+            Direction::Right => Direction::Left,
+            Direction::Up => Direction::Down,
+            Direction::Down => Direction::Up,
+        }
+    }
+
+    fn vector(&self) -> (i32, i32) {
+        match self {
+            Direction::Left => (-1, 0),
+            Direction::Right => (1, 0),
+            Direction::Up => (0, 1),
+            Direction::Down => (0, -1),
+        }
+    }
+
+    fn as_grid_position(&self) -> GridPosition {
+        match self {
+            Direction::Left => GridPosition::new(-1, 0),
+            Direction::Right => GridPosition::new(1, 0),
+            Direction::Up => GridPosition::new(0, 1),
+            Direction::Down => GridPosition::new(0, -1),
+        }
+    }
 }
 
 #[derive(Component, Clone, Copy, Debug, PartialEq)]

@@ -1,4 +1,4 @@
-use bevy::{core::FixedTimestep, log::LogSettings, prelude::*};
+use bevy::{core::FixedTimestep, input, log::LogSettings, prelude::*};
 use rand::Rng;
 use std::ops::{Add, AddAssign};
 
@@ -14,6 +14,7 @@ const REFERENCE_HEIGHT: f32 = 1080.0;
 const REFERENCE_ASPECT: f32 = REFERENCE_WIDTH / REFERENCE_HEIGHT;
 const ACTION_TICK_FREQUENCY: f64 = 0.5; // Seconds
 const REGEN_TICK_FREQUENCY: f64 = ACTION_TICK_FREQUENCY * 5.0; // Seconds
+const CAMERA_SPEED_PIXELS_PER_SECOND: f32 = 100.0;
 
 fn main() {
     App::new()
@@ -32,6 +33,8 @@ fn main() {
         .add_startup_system(setup)
         .add_system(position_translation)
         .add_system(size_scaling)
+        .add_system(pan_camera_system)
+        .add_system(cursor_grab_system)
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(ACTION_TICK_FREQUENCY))
@@ -48,7 +51,9 @@ fn main() {
 }
 
 fn setup_cameras(mut commands: Commands) {
-    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+    commands
+        .spawn_bundle(OrthographicCameraBundle::new_2d())
+        .insert(SimplePanCamera);
     commands.spawn_bundle(UiCameraBundle::default());
 }
 
@@ -768,6 +773,7 @@ impl Terrain {
         }
     }
 }
+
 fn spawn_tile(
     commands: &mut Commands,
     asset_server: &AssetServer,
@@ -791,8 +797,8 @@ fn spawn_tile(
 fn spawn_tile_grid(mut commands: Commands, asset_server: Res<AssetServer>) {
     let mut grid_position = GridPosition::new(0, 0);
     let mut terrain = Terrain::None;
-    for _ in 0..10 {
-        for _ in 0..10 {
+    for _ in 0..MAP_WIDTH {
+        for _ in 0..MAP_HEIGHT {
             info!("Spawning tile at {:?}", grid_position);
             spawn_tile(
                 &mut commands,
@@ -803,7 +809,7 @@ fn spawn_tile_grid(mut commands: Commands, asset_server: Res<AssetServer>) {
             );
             grid_position.x += 1;
 
-            if grid_position.x == 10 {
+            if grid_position.x == MAP_WIDTH as i32 {
                 grid_position.x = 0;
                 grid_position.y += 1;
 
@@ -817,23 +823,95 @@ fn spawn_tile_grid(mut commands: Commands, asset_server: Res<AssetServer>) {
                         terrain = Terrain::Hill;
                     }
 
-                    if grid_position.y == 7 {
+                    if grid_position.y == 6 {
                         terrain = Terrain::Mountain;
                     }
 
-                    if grid_position.y == 8 {
+                    if grid_position.y == 7 {
                         terrain = Terrain::Water;
                     }
 
-                    if grid_position.y == 9 {
+                    if grid_position.y == 8 {
                         terrain = Terrain::Forest;
                     }
 
-                    if grid_position.y == 10 {
+                    if grid_position.y == 9 {
                         terrain = Terrain::Urban;
                     }
                 }
             }
         }
+    }
+}
+
+#[derive(Component)]
+struct SimplePanCamera;
+
+#[derive(Component)]
+struct CameraTarget;
+
+fn pan_camera_system(
+    mut windows: ResMut<Windows>,
+    keyboard: Res<Input<KeyCode>>,
+    mouse_buttons: Res<Input<MouseButton>>,
+    mut query: Query<(&SimplePanCamera, &mut Transform)>,
+    time: Res<Time>,
+) {
+    let window = windows.get_primary_mut().unwrap();
+
+    if mouse_buttons.just_pressed(MouseButton::Left) {
+        window.set_cursor_lock_mode(true);
+        window.set_cursor_visibility(false);
+    }
+
+    if keyboard.just_pressed(KeyCode::Escape) {
+        window.set_cursor_lock_mode(false);
+        window.set_cursor_visibility(true);
+    }
+    let mut focus = Vec3::new(0.0, 0.0, 0.0);
+    for (camera, mut transform) in &mut query.iter_mut() {
+        let mut delta = Vec3::new(0.0, 0.0, 0.0);
+        if keyboard.pressed(input::keyboard::KeyCode::W) {
+            delta.y += CAMERA_SPEED_PIXELS_PER_SECOND * time.delta_seconds();
+        }
+
+        if keyboard.pressed(input::keyboard::KeyCode::S) {
+            delta.y -= CAMERA_SPEED_PIXELS_PER_SECOND * time.delta_seconds();
+        }
+
+        if keyboard.pressed(input::keyboard::KeyCode::A) {
+            delta.x -= CAMERA_SPEED_PIXELS_PER_SECOND * time.delta_seconds();
+        }
+
+        if keyboard.pressed(input::keyboard::KeyCode::D) {
+            delta.x += CAMERA_SPEED_PIXELS_PER_SECOND * time.delta_seconds();
+        }
+
+        if delta.x != 0.0 || delta.y != 0.0 {
+            focus += delta;
+            transform.translation = Vec3::new(
+                transform.translation.x + focus.x,
+                transform.translation.y + focus.y,
+                transform.translation.z,
+            );
+        }
+    }
+}
+
+fn cursor_grab_system(
+    mut windows: ResMut<Windows>,
+    btn: Res<Input<MouseButton>>,
+    key: Res<Input<KeyCode>>,
+) {
+    let window = windows.get_primary_mut().unwrap();
+
+    if btn.just_pressed(MouseButton::Left) {
+        window.set_cursor_lock_mode(true);
+        window.set_cursor_visibility(false);
+    }
+
+    if key.just_pressed(KeyCode::Escape) {
+        window.set_cursor_lock_mode(false);
+        window.set_cursor_visibility(true);
     }
 }

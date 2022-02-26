@@ -15,21 +15,6 @@ const REFERENCE_ASPECT: f32 = REFERENCE_WIDTH / REFERENCE_HEIGHT;
 const ACTION_TICK_FREQUENCY: f64 = 0.5; // Seconds
 const REGEN_TICK_FREQUENCY: f64 = ACTION_TICK_FREQUENCY * 5.0; // Seconds
 
-struct ScreenSize {
-    width: f32,
-    height: f32,
-}
-
-impl ScreenSize {
-    fn new(width: f32, height: f32) -> Self {
-        Self { width, height }
-    }
-
-    fn aspect(&self) -> f32 {
-        self.width / self.height
-    }
-}
-
 fn main() {
     App::new()
         .insert_resource(LogSettings {

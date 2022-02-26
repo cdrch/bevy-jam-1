@@ -1,4 +1,5 @@
 use bevy::{log::LogSettings, prelude::*};
+use rand::Rng;
 use std::ops::{Add, AddAssign};
 
 const MAP_WIDTH: u32 = 20;
@@ -125,6 +126,17 @@ fn try_move_unit(
     }
 }
 
+fn random_direction() -> Direction {
+    let mut rng = rand::thread_rng();
+    let random_number = rng.gen_range(0..4);
+    match random_number {
+        0 => Direction::Up,
+        1 => Direction::Down,
+        2 => Direction::Left,
+        3 => Direction::Right,
+        _ => panic!("Invalid random number"),
+    }
+}
 
 fn size_scaling(windows: Res<Windows>, mut q: Query<(&Size, &mut Transform)>) {
     let window = windows.get_primary().unwrap();

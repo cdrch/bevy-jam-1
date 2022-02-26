@@ -12,6 +12,8 @@ const GAME_HEIGHT: f32 = TILE_HEIGHT * MAP_HEIGHT as f32;
 const REFERENCE_WIDTH: f32 = 1920.0;
 const REFERENCE_HEIGHT: f32 = 1080.0;
 const REFERENCE_ASPECT: f32 = REFERENCE_WIDTH / REFERENCE_HEIGHT;
+const ACTION_TICK_FREQUENCY: f64 = 0.5; // Seconds
+const REGEN_TICK_FREQUENCY: f64 = ACTION_TICK_FREQUENCY * 5.0; // Seconds
 
 struct ScreenSize {
     width: f32,
@@ -46,13 +48,13 @@ fn main() {
         .add_system(size_scaling)
         .add_system_set(
             SystemSet::new()
-                .with_run_criteria(FixedTimestep::step(1.0))
+                .with_run_criteria(FixedTimestep::step(ACTION_TICK_FREQUENCY))
                 .with_system(order_random_movement),
         )
         .add_system(move_units)
         .add_system_set(
             SystemSet::new()
-                .with_run_criteria(FixedTimestep::step(2.5))
+                .with_run_criteria(FixedTimestep::step(REGEN_TICK_FREQUENCY))
                 .with_system(energy_regeneration),
         )
         .add_system(debug_energy)

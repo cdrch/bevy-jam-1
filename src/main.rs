@@ -1,8 +1,20 @@
-use bevy::prelude::*;
+use bevy::{log::LogSettings, prelude::*};
 use std::ops::{Add, AddAssign};
+
+const MAP_WIDTH: u32 = 20;
+const MAP_HEIGHT: u32 = 20;
+const MAP_SIZE: u32 = MAP_WIDTH * MAP_HEIGHT;
+const TILE_WIDTH: f32 = 1.0;
+const TILE_HEIGHT: f32 = 1.0;
+const GAME_WIDTH: f32 = TILE_WIDTH * MAP_WIDTH as f32;
+const GAME_HEIGHT: f32 = TILE_HEIGHT * MAP_HEIGHT as f32;
 
 fn main() {
     App::new()
+        .insert_resource(LogSettings {
+            level: bevy::log::Level::INFO,
+            ..Default::default()
+        })
         .insert_resource(WindowDescriptor {
             title: "Bevy Jam #1".to_string(),
             ..Default::default()
@@ -11,6 +23,8 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_startup_system(setup_cameras)
         .add_startup_system(setup)
+        .add_system(position_translation)
+        .add_system(size_scaling)
         .run();
 }
 
@@ -20,10 +34,10 @@ fn setup_cameras(mut commands: Commands) {
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn_bundle(SpriteBundle {
-        texture: asset_server.load("Kenney Blue Letter Tiles/letter_A.png"),
-        ..Default::default()
-    });
+    // commands.spawn_bundle(SpriteBundle {
+    //     texture: asset_server.load("Kenney Blue Letter Tiles/letter_A.png"),
+    //     ..Default::default()
+    // });
     spawn_unit(
         commands,
         asset_server,
@@ -76,6 +90,7 @@ fn spawn_unit(
             transform: Transform::from_translation(grid_position.to_vec3()),
             ..Default::default()
         })
+        .insert(Size::new(TILE_WIDTH, TILE_HEIGHT))
         .insert(Unit)
         .insert(unit_controller)
         .insert(grid_position)
@@ -107,6 +122,53 @@ fn try_move_unit(
         *unit_position += direction.as_grid_position();
         // Set the unit's UnitEnergy component to the new energy
         unit_energy.current_energy.0 -= unit_move.energy_cost.0;
+    }
+}
+
+
+fn size_scaling(windows: Res<Windows>, mut q: Query<(&Size, &mut Transform)>) {
+    let window = windows.get_primary().unwrap();
+    let aspect_ratio = window.width() as f32 / window.height() as f32;
+    for (sprite_size, mut transform) in q.iter_mut() {
+        println!("{:?}", sprite_size.width * aspect_ratio as f32);
+        println!("{:?}", sprite_size.height * aspect_ratio as f32);
+        transform.scale = Vec3::new(
+            sprite_size.width /*/ GAME_WIDTH as f32*/ * aspect_ratio as f32,
+            sprite_size.height /*/ GAME_HEIGHT as f32*/ * aspect_ratio as f32,
+            1.0,
+        );
+    }
+}
+
+fn position_translation(windows: Res<Windows>, mut q: Query<(&GridPosition, &mut Transform)>) {
+    fn convert(pos: f32, window_bound: f32, game_bound: f32) -> f32 {
+        let tile_size = window_bound / game_bound;
+        pos / game_bound * window_bound - (window_bound / 2.) + (tile_size / 2.)
+    }
+    let window = windows.get_primary().unwrap();
+    for (pos, mut transform) in q.iter_mut() {
+        transform.translation = Vec3::new(
+            convert(pos.x as f32, window.width() as f32, GAME_WIDTH as f32),
+            convert(pos.y as f32, window.height() as f32, GAME_HEIGHT as f32),
+            0.0,
+        );
+    }
+}
+
+#[derive(Component)]
+struct Size {
+    width: f32,
+    height: f32,
+}
+impl Size {
+    fn new(width: f32, height: f32) -> Self {
+        Size { width, height }
+    }
+    fn square(x: f32) -> Self {
+        Self {
+            width: x,
+            height: x,
+        }
     }
 }
 

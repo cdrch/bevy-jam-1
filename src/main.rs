@@ -2,11 +2,11 @@ use bevy::{core::FixedTimestep, log::LogSettings, prelude::*};
 use rand::Rng;
 use std::ops::{Add, AddAssign};
 
-const MAP_WIDTH: u32 = 20;
-const MAP_HEIGHT: u32 = 20;
+const MAP_WIDTH: u32 = 5;
+const MAP_HEIGHT: u32 = 5;
 const MAP_SIZE: u32 = MAP_WIDTH * MAP_HEIGHT;
-const TILE_WIDTH: f32 = 2.0;
-const TILE_HEIGHT: f32 = 2.0;
+const TILE_WIDTH: f32 = 256.0;
+const TILE_HEIGHT: f32 = 256.0;
 const GAME_WIDTH: f32 = TILE_WIDTH * MAP_WIDTH as f32;
 const GAME_HEIGHT: f32 = TILE_HEIGHT * MAP_HEIGHT as f32;
 const REFERENCE_WIDTH: f32 = 1920.0;
@@ -115,7 +115,7 @@ fn spawn_unit(
             transform: Transform::from_translation(grid_position.to_vec3()),
             ..Default::default()
         })
-        .insert(Size::new(TILE_WIDTH, TILE_HEIGHT))
+        .insert(Size::new(1.0, 1.0))
         .insert(Unit)
         .insert(unit_controller)
         .insert(grid_position)
@@ -237,15 +237,19 @@ fn size_scaling(windows: Res<Windows>, mut q: Query<(&Size, &mut Transform)>) {
 fn position_translation(windows: Res<Windows>, mut q: Query<(&GridPosition, &mut Transform)>) {
     fn convert(pos: f32, window_bound: f32, game_bound: f32) -> f32 {
         let tile_size = TILE_WIDTH; //window_bound / game_bound;
-        pos // game_bound * window_bound - (window_bound / 2.) + (tile_size / 2.)
+                                    // pos * game_bound * window_bound - (window_bound / 2.) + (window_bound / game_bound / 2.)
+        pos * tile_size
     }
     let window = windows.get_primary().unwrap();
     for (pos, mut transform) in q.iter_mut() {
         transform.translation = Vec3::new(
-            convert(pos.x as f32, window.width() as f32, GAME_WIDTH as f32),
-            convert(pos.y as f32, window.height() as f32, GAME_HEIGHT as f32),
+            convert(pos.x as f32, window.width() as f32, GAME_WIDTH as f32) * window.height()
+                / REFERENCE_HEIGHT,
+            convert(pos.y as f32, window.height() as f32, GAME_HEIGHT as f32) * window.height()
+                / REFERENCE_HEIGHT,
             0.0,
         );
+        info!("{:?}", transform.translation);
     }
 }
 
